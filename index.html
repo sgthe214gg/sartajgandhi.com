@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PulseFit — Apple Fitness Inspired Routine & AI Rep Tracker</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Inter, JetBrains Mono & Material Symbols Rounded -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0&display=swap" rel="stylesheet">
+
+  <!-- MediaPipe Pose & Drawing Utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            iosBg: '#F5F5F7',
+            iosCard: '#FFFFFF',
+            iosBlue: '#007AFF',
+            iosBlueHover: '#0062CC',
+            iosSlate: '#1D1D1F',
+            iosMuted: '#86868B',
+            iosBorder: '#E5E5EA'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --ios-bg: #F5F5F7;
+      --ios-card: #FFFFFF;
+      --ios-blue: #007AFF;
+      --ios-blue-hover: #0062CC;
+      --ios-blue-soft: #EBF4FF;
+      --ios-text: #1D1D1F;
+      --ios-muted: #86868B;
+      --ios-border: #E5E5EA;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--ios-bg);
+      color: var(--ios-text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    .material-symbols-rounded {
+      font-size: 20px;
+      line-height: 1;
+      vertical-align: middle;
+      user-select: none;
+    }
+
+    /* Apple iOS Card Surface */
+    .ios-card {
+      background: var(--ios-card);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      border-radius: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    /* Unified Apple System Blue Primary Button */
+    .btn-ios-primary {
+      background-color: var(--ios-blue);
+      color: #FFFFFF;
+      border: 1px solid var(--ios-blue);
+      min-height: 50px;
+      padding: 12px 22px;
+      border-radius: 16px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.16s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    .btn-ios-primary:hover {
+      background-color: var(--ios-blue-hover);
+      border-color: var(--ios-blue-hover);
+      box-shadow: 0 6px 16px rgba(0, 122, 255, 0.22);
+    }
+    .btn-ios-primary:active {
+      transform: scale(0.98);
+    }
+
+    /* Unified Clean Slate Secondary Button */
+    .btn-ios-secondary {
+      background-color: #F2F2F7;
+      color: var(--ios-text);
+      border: 1px solid #E5E5EA;
+      min-height: 50px;
+      padding: 12px 22px;
+      border-radius: 16px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .btn-ios-secondary:hover {
+      background-color: #E5E5EA;
+    }
+    .btn-ios-secondary:active {
+      transform: scale(0.98);
+    }
+
+    /* Wizard Option Selectable Card */
+    .ios-option-card {
+      background: #FFFFFF;
+      border: 1.5px solid #E5E5EA;
+      border-radius: 18px;
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+      text-align: left;
+    }
+    .ios-option-card:hover {
+      border-color: #C7C7CC;
+      background: #FAFAFC;
+    }
+    .ios-option-card.selected {
+      background: var(--ios-blue-soft) !important;
+      border-color: var(--ios-blue) !important;
+      box-shadow: 0 2px 12px rgba(0, 122, 255, 0.08);
+    }
+
+    /* Subtle iOS Pill Badge */
+    .ios-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      background: var(--ios-blue-soft);
+      color: var(--ios-blue);
+    }
+
+    /* Rep Counter Bump & Ripple Animations */
+    @keyframes repScaleBump {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.22); }
+      100% { transform: scale(1); }
+    }
+    .rep-pop {
+      animation: repScaleBump 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes tapPulseWave {
+      0% { transform: scale(0.15); opacity: 0.6; }
+      100% { transform: scale(3.1); opacity: 0; }
+    }
+    .tap-wave {
+      position: absolute;
+      width: 110px;
+      height: 110px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.45);
+      pointer-events: none;
+      animation: tapPulseWave 0.48s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="flex flex-col antialiased">
+
+  <!-- Confetti Canvas & Toast Notifications -->
+  <canvas id="confettiCanvas" class="fixed inset-0 pointer-events-none z-50 hidden"></canvas>
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ===================================================================
+       1. TAB-FREE 8-STEP ONE-QUESTION-AT-A-TIME SETUP WIZARD
+       No bottom navigation bar is visible here. Clean, centered iOS card.
+       =================================================================== -->
+  <div id="onboardingWizardView" class="min-h-screen w-full flex flex-col items-center justify-center px-4 py-8">
+    <div class="w-full max-w-xl space-y-5">
+
+      <!-- Minimal Brand Header -->
+      <div class="flex items-center justify-between px-1">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-[#007AFF] text-white flex items-center justify-center shadow-sm">
+            <span class="material-symbols-rounded" style="font-size:20px;">fitness_center</span>
+          </div>
+          <span class="text-lg font-extrabold tracking-tight text-[#1D1D1F]">Pulse<span class="text-[#007AFF]">Fit</span></span>
+        </div>
+
+        <button id="returnToAppBtn" onclick="enterMainInterface()" class="hidden btn-ios-secondary !min-h-[36px] !py-1.5 !px-3.5 text-xs">
+          <span>Done</span>
+        </button>
+      </div>
+
+      <!-- Centered iOS Setup Card -->
+      <div class="ios-card p-6 sm:p-9 space-y-7">
+
+        <!-- Smooth Step Progress Header -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <span id="wizStepPill" class="ios-pill">STEP 1 OF 8</span>
+            <span id="wizSubStatus" class="text-xs font-medium text-[#86868B]">Account & Personalization</span>
+          </div>
+          <div class="w-full h-1.5 bg-[#E5E5EA] rounded-full overflow-hidden">
+            <div id="wizProgressBar" class="h-full bg-[#007AFF] transition-all duration-300" style="width: 12.5%"></div>
+          </div>
+        </div>
+
+        <!-- STEP 1 OF 8: ACCOUNT SETUP / LOGIN -->
+        <div id="wiz-step-1" class="wiz-pane space-y-6">
+          <div class="space-y-1.5">
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Create or Sign In
+            </h1>
+            <p class="text-sm text-[#86868B] leading-relaxed">
+              Enter a username and password to save your custom workout plan, streak, and personal records.
+            </p>
+          </div>
+
+          <div class="space-y-3.5">
+            <div>
+              <label class="text-xs font-semibold text-[#86868B] block mb-1">Username</label>
+              <input id="authUsernameInput" type="text" placeholder="e.g. jordan_fit" class="w-full bg-[#F5F5F7] border border-[#E5E5EA] rounded-2xl px-4 py-3.5 text-base font-semibold text-[#1D1D1F] focus:outline-none focus:border-[#007AFF] focus:bg-white transition" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-[#86868B] block mb-1">Password</label>
+              <input id="authPasswordInput" type="password" placeholder="••••••••" class="w-full bg-[#F5F5F7] border border-[#E5E5EA] rounded-2xl px-4 py-3.5 text-base font-semibold text-[#1D1D1F] focus:outline-none focus:border-[#007AFF] focus:bg-white transition" />
+            </div>
+            <p id="authFeedbackMsg" class="text-xs font-semibold text-[#007AFF] min-h-[16px]"></p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-3 pt-1">
+            <button type="button" onclick="handleContinueSetupStep1()" class="btn-ios-primary flex-1">
+              <span>Continue Setup</span>
+              <span class="material-symbols-rounded" style="font-size:18px;">arrow_forward</span>
+            </button>
+            <button type="button" onclick="handleSignInExisting()" class="btn-ios-secondary flex-1">
+              <span>Sign In to Existing Account</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2 OF 8: CHOOSE APP VIEW MODE (CLASSIC VS ADVANCED — VERY DIFFERENT LAYOUTS) -->
+        <div id="wiz-step-2" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Choose Your App View Mode
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Pick how you want your workouts displayed. You can switch between Classic and Advanced anytime.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3.5">
+            <!-- Classic View Option -->
+            <button type="button" id="viewCard-classic" onclick="selectViewMode('classic')" class="ios-option-card selected space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="ios-pill">APPLE FITNESS MINIMALIST</span>
+                <span class="material-symbols-rounded text-[#007AFF]">auto_awesome</span>
+              </div>
+              <div class="text-lg font-extrabold text-[#1D1D1F]">Classic View (Simple & Effortless)</div>
+              <p class="text-xs sm:text-sm text-[#86868B] leading-relaxed">
+                Ultra-clean layout with big typography, zero visual clutter, one-tap exercise completion, and an effortless flow. Hides technical gym tables.
+              </p>
+            </button>
+
+            <!-- Advanced View Option -->
+            <button type="button" id="viewCard-advanced" onclick="selectViewMode('advanced')" class="ios-option-card space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="ios-pill">PRO GYM LOGGER (STRONG / HEVY / FITBOD)</span>
+                <span class="material-symbols-rounded text-[#007AFF]">monitoring</span>
+              </div>
+              <div class="text-lg font-extrabold text-[#1D1D1F]">Advanced View (Full Set Tables & Analytics)</div>
+              <p class="text-xs sm:text-sm text-[#86868B] leading-relaxed">
+                Detailed set-by-set logging tables, RPE/Intensity tags (Drop Set, Superset A1+A2, AMRAP), PR badges, and muscle volume analytics.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 3 OF 8: STARTER ROUTINE BASIS (MULTI-SELECT ALLOWED) -->
+        <div id="wiz-step-3" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Starter Routine Basis
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Multi-select allowed — combine one or more workout styles as your foundation.
+            </p>
+          </div>
+          <div id="wizBasisGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+
+        <!-- STEP 4 OF 8: ROUTINE STRUCTURE (MULTI-SELECT / CHOICE) -->
+        <div id="wiz-step-4" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Weekly Routine Structure
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Do you want specific muscle groups assigned by day of the week, or the same full-body routine daily? (Tap one or both to blend).
+            </p>
+          </div>
+          <div id="wizStructureGrid" class="grid grid-cols-1 gap-3.5"></div>
+        </div>
+
+        <!-- STEP 5 OF 8: SCHEDULE (TIME PER DAY & DAYS PER WEEK) -->
+        <div id="wiz-step-5" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Daily Time & Weekly Frequency
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Choose how long your sessions last and how many days per week you train.
+            </p>
+          </div>
+
+          <div class="space-y-5">
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wider text-[#86868B] block mb-2.5">Time Per Day</label>
+              <div id="wizDurationRow" class="grid grid-cols-4 gap-2.5"></div>
+            </div>
+            <div>
+              <label class="text-xs font-bold uppercase tracking-wider text-[#86868B] block mb-2.5">Days Per Week</label>
+              <div id="wizDaysRow" class="grid grid-cols-4 gap-2.5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 6 OF 8: FITNESS GOALS (MULTI-SELECT) -->
+        <div id="wiz-step-6" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Your Fitness Goals
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Multi-select allowed — select all goals you want to target.
+            </p>
+          </div>
+          <div id="wizGoalsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+
+        <!-- STEP 7 OF 8: EQUIPMENT LOCKER (MULTI-SELECT) -->
+        <div id="wiz-step-7" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Equipment Locker
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Multi-select allowed — pick all equipment you have access to.
+            </p>
+          </div>
+          <div id="wizEquipGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+
+        <!-- STEP 8 OF 8: INTENSITY MODIFIERS (MULTI-SELECT) -->
+        <div id="wiz-step-8" class="wiz-pane hidden space-y-5">
+          <div class="space-y-1.5">
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#1D1D1F]">
+              Intensity Modifiers
+            </h2>
+            <p class="text-sm text-[#86868B]">
+              Multi-select allowed — include Drop Sets, Supersets, or Max-Out AMRAP sets in your plan.
+            </p>
+          </div>
+          <div id="wizModifiersGrid" class="grid grid-cols-1 gap-3"></div>
+        </div>
+
+        <!-- Minimal Footer Navigation for Steps 2 to 8 -->
+        <div id="wizNavFooter" class="hidden items-center justify-between pt-4 border-t border-[#E5E5EA]">
+          <button type="button" onclick="stepWizard(-1)" class="btn-ios-secondary !min-h-[44px] !py-2 !px-4 text-sm">
+            <span class="material-symbols-rounded" style="font-size:18px;">chevron_left</span>
+            <span>Back</span>
+          </button>
+
+          <button type="button" id="wizPrimaryNextBtn" onclick="stepWizard(1)" class="btn-ios-primary !min-h-[44px] !py-2 !px-6 text-sm">
+            <span id="wizPrimaryNextLabel">Next</span>
+            <span class="material-symbols-rounded" style="font-size:18px;">chevron_right</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       2. STREAMLINED 3-TAB MAIN INTERFACE ("Today", "Plan", "Profile")
+       Shown after onboarding or login. Adapts dynamically to Classic vs Advanced!
+       =================================================================== -->
+  <div id="mainAppView" class="hidden min-h-screen flex-col pb-28">
+
+    <!-- Apple iOS Translucent Top Header -->
+    <header class="sticky top-0 z-30 bg-white/85 backdrop-blur-xl border-b border-[#E5E5EA]">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5 cursor-pointer" onclick="switchTab('today')">
+          <div class="w-9 h-9 rounded-xl bg-[#007AFF] text-white flex items-center justify-center shadow-sm">
+            <span class="material-symbols-rounded" style="font-size:20px;">fitness_center</span>
+          </div>
+          <div>
+            <span class="text-base font-extrabold tracking-tight text-[#1D1D1F]">Pulse<span class="text-[#007AFF]">Fit</span></span>
+          </div>
+        </div>
+
+        <!-- Instant Classic vs Advanced Segmented Pill + Streak -->
+        <div class="flex items-center gap-2">
+          <div class="bg-[#F2F2F7] p-0.5 rounded-xl border border-[#E5E5EA] flex items-center text-xs font-bold">
+            <button id="hdrModeClassic" onclick="setViewModeLive('classic')" class="px-2.5 py-1 rounded-lg transition bg-white text-[#007AFF] shadow-sm">
+              Classic
+            </button>
+            <button id="hdrModeAdvanced" onclick="setViewModeLive('advanced')" class="px-2.5 py-1 rounded-lg transition text-[#86868B]">
+              Advanced
+            </button>
+          </div>
+
+          <button onclick="switchTab('profile')" class="btn-ios-secondary !min-h-[34px] !py-1 !px-3 text-xs !rounded-xl">
+            <span class="material-symbols-rounded text-[#007AFF]" style="font-size:17px;">local_fire_department</span>
+            <span id="hdrStreakCount" class="font-extrabold text-[#1D1D1F]">1</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 pt-6">
+
+      <!-- ===============================================================
+           TAB 1: "TODAY" (DRAMATICALLY DIFFERENT IN CLASSIC VS ADVANCED)
+           =============================================================== -->
+      <section id="main-tab-today" class="tab-pane space-y-5">
+        <div id="todayDynamicContainer"></div>
+      </section>
+
+      <!-- ===============================================================
+           TAB 2: "PLAN" (WEEKLY SPLIT / ROUTINE)
+           =============================================================== -->
+      <section id="main-tab-plan" class="tab-pane hidden space-y-5">
+        <div id="planDynamicContainer"></div>
+      </section>
+
+      <!-- ===============================================================
+           TAB 3: "PROFILE" (STREAK, PRS, VIEW SWITCHER & ACCOUNT)
+           =============================================================== -->
+      <section id="main-tab-profile" class="tab-pane hidden space-y-5">
+        <div id="profileDynamicContainer"></div>
+      </section>
+
+    </main>
+
+    <!-- ===============================================================
+         TRANSLUCENT iOS 3-TAB BOTTOM BAR ("Today", "Plan", "Profile")
+         =============================================================== -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-[#E5E5EA]">
+      <div class="max-w-md mx-auto px-6 py-2 grid grid-cols-3 gap-2">
+        <button id="tabBtn-today" onclick="switchTab('today')" class="flex flex-col items-center justify-center py-1.5 rounded-2xl text-[#007AFF] font-bold text-[11px] transition">
+          <span class="material-symbols-rounded mb-0.5" style="font-size:22px;">today</span>
+          <span>Today</span>
+        </button>
+
+        <button id="tabBtn-plan" onclick="switchTab('plan')" class="flex flex-col items-center justify-center py-1.5 rounded-2xl text-[#86868B] font-semibold text-[11px] transition">
+          <span class="material-symbols-rounded mb-0.5" style="font-size:22px;">calendar_view_week</span>
+          <span>Plan</span>
+        </button>
+
+        <button id="tabBtn-profile" onclick="switchTab('profile')" class="flex flex-col items-center justify-center py-1.5 rounded-2xl text-[#86868B] font-semibold text-[11px] transition">
+          <span class="material-symbols-rounded mb-0.5" style="font-size:22px;">person</span>
+          <span>Profile</span>
+        </button>
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- ===================================================================
+       3. FULL-SCREEN SINGLE-COLOR TAP PAD MODAL
+       Tap anywhere on screen for +1 rep.
+       =================================================================== -->
+  <div id="tapPadOverlay" onclick="handleTapPadClick(event)" class="fixed inset-0 z-50 hidden flex-col justify-between p-6 sm:p-10 cursor-pointer bg-[#007AFF] text-white select-none overflow-hidden">
+    <div onclick="event.stopPropagation()" class="relative z-10 flex items-center justify-between gap-4">
+      <div>
+        <span id="tapPadSub" class="text-xs font-bold uppercase tracking-wider opacity-85">TAP ANYWHERE TO COUNT</span>
+        <h2 id="tapPadTitle" class="text-2xl sm:text-3xl font-extrabold mt-0.5">Pull-Ups</h2>
+      </div>
+      <button onclick="closeTapPadModal()" class="px-5 py-2.5 rounded-full bg-white text-[#1D1D1F] font-bold text-sm shadow-md">
+        Done
+      </button>
+    </div>
+
+    <div class="relative z-10 flex flex-col items-center justify-center text-center my-auto pointer-events-none">
+      <div id="tapPadNumber" class="text-[9rem] sm:text-[12rem] font-black font-mono leading-none">
+        0
+      </div>
+      <div id="tapPadTarget" class="text-xl font-bold opacity-90 mt-2">
+        Target: 10 Reps
+      </div>
+      <p class="text-xs uppercase tracking-widest opacity-75 mt-3">
+        Tap anywhere on screen for +1 rep
+      </p>
+    </div>
+
+    <div onclick="event.stopPropagation()" class="relative z-10 flex items-center justify-between gap-3">
+      <button onclick="resetActiveRepCount()" class="px-4 py-2.5 rounded-full bg-white/20 text-white font-semibold text-xs">
+        Reset
+      </button>
+      <button onclick="finishSetFromTracker(); closeTapPadModal();" class="px-6 py-3 rounded-full bg-white text-[#007AFF] font-bold text-sm shadow-md">
+        ✓ Complete Set
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       4. ULTRA-SIMPLE MINIMALIST AI CAMERA REP TRACKER
+       - Only shows what is needed:
+         1. Full-bleed live video + MediaPipe Pose skeleton & dots overlay
+         2. Large high-contrast Rep Counter badge in top-right corner
+         3. Tapping ANYWHERE on the camera canvas adds +1 rep
+         4. Conditional "Flip Camera" icon button (only shown if multiple cameras exist/supported)
+         5. Clean "Done" button to exit and save reps
+       =================================================================== -->
+  <div id="minimalCameraModal" class="fixed inset-0 z-50 hidden bg-black select-none overflow-hidden">
+    <!-- Hidden raw video element -->
+    <video id="liveCameraVideo" class="hidden" playsinline muted></video>
+
+    <!-- Full-bleed tappable video & skeleton canvas -->
+    <canvas id="liveCameraCanvas" onclick="handleCameraCanvasTap(event)" class="w-full h-full object-cover cursor-pointer"></canvas>
+
+    <!-- Top Minimal Overlay Bar -->
+    <div class="absolute top-5 left-5 right-5 z-20 flex items-start justify-between pointer-events-none">
+      <!-- Left: Clean Done Button + Conditional Flip Camera Button -->
+      <div class="flex items-center gap-2.5 pointer-events-auto">
+        <button onclick="closeMinimalCameraModal()" class="px-5 py-2.5 rounded-full bg-white/90 backdrop-blur-md text-[#1D1D1F] font-bold text-sm shadow-lg flex items-center gap-1.5 active:scale-95 transition">
+          <span class="material-symbols-rounded" style="font-size:18px;">check</span>
+          <span>Done</span>
+        </button>
+
+        <!-- Conditional Flip Camera Button (Only shown when >1 camera is detected) -->
+        <button id="flipCameraBtn" onclick="switchCameraFacingMode(event)" class="hidden w-11 h-11 rounded-full bg-black/55 backdrop-blur-md text-white border border-white/25 items-center justify-center shadow-lg active:scale-95 transition" title="Switch Camera">
+          <span class="material-symbols-rounded" style="font-size:21px;">flip_camera_ios</span>
+        </button>
+      </div>
+
+      <!-- Top-Right Corner: High-Contrast Apple-Style Rep Counter Pill (Also Tappable) -->
+      <div onclick="handleCameraCanvasTap(event)" class="pointer-events-auto cursor-pointer bg-white/95 backdrop-blur-md text-[#1D1D1F] px-5 py-3 rounded-3xl shadow-2xl border border-white/40 flex flex-col items-end active:scale-95 transition">
+        <span id="camCornerExerciseLabel" class="text-[10px] font-extrabold uppercase tracking-wider text-[#007AFF]">
+          PULL-UPS
+        </span>
+        <div class="flex items-baseline gap-1.5 mt-0.5">
+          <span id="camCornerRepCount" class="text-4xl sm:text-5xl font-black font-mono leading-none text-[#1D1D1F]">0</span>
+          <span id="camCornerTargetCount" class="text-sm font-bold text-[#86868B]">/ 10</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subtle Bottom Pill Hint -->
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+      <div id="camMinimalStatusPill" class="px-4 py-2 rounded-full bg-black/55 backdrop-blur-md text-white/90 text-xs font-medium border border-white/15 whitespace-nowrap">
+        Tracking pose dots • Tap anywhere on video for +1 rep
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       FIREBASE + LOCALSTORAGE PERSISTENCE & APPLICATION LOGIC
+       =================================================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'pulsefit-ios-app';
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+
+    async function initFirebase() {
+      try {
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          db = getFirestore(app);
+          auth = getAuth(app);
+
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+          onAuthStateChanged(auth, (u) => {
+            currentUser = u;
+          });
+        }
+      } catch (e) {
+        console.warn("Firebase optional sync:", e);
+      }
+    }
+
+    window.saveUserCloud = async function(username, payload) {
+      if (!db || !currentUser || !username) return;
+      try {
+        const key = username.trim().toLowerCase();
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'workout_accounts', key);
+        await setDoc(ref, {
+          username: username.trim(),
+          payloadJson: JSON.stringify(payload),
+          updatedAt: Date.now()
+        });
+      } catch (e) {
+        console.warn("Cloud save error:", e);
+      }
+    };
+
+    window.loadUserCloud = async function(username) {
+      if (!db || !currentUser || !username) return null;
+      try {
+        const key = username.trim().toLowerCase();
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'workout_accounts', key);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d && d.payloadJson) return JSON.parse(d.payloadJson);
+        }
+      } catch (e) {
+        console.warn("Cloud load error:", e);
+      }
+      return null;
+    };
+
+    initFirebase();
+  </script>
+
+  <script>
+    /* =========================================================================
+       1. ONBOARDING OPTIONS DATA (8 STEPS WITH MULTI-SELECT)
+       ========================================================================= */
+    const BASIS_OPTIONS = [
+      { id: 'calisthenics', name: 'Pull-Up & Calisthenics', icon: 'sports_gymnastics', desc: 'Pull-ups, dips, push-ups & bodyweight control' },
+      { id: 'hypertrophy', name: 'Dumbbell Hypertrophy', icon: 'exercise', desc: 'Muscle building split with progressive volume' },
+      { id: 'athletic', name: 'Athletic Core & Speed', icon: 'bolt', desc: 'Explosive leg power, agility & hanging abs' },
+      { id: 'strength_pr', name: 'Strength Max-Out', icon: 'emoji_events', desc: 'Compound lifts & single-set AMRAP records' }
+    ];
+
+    const STRUCTURE_OPTIONS = [
+      {
+        id: 'dayspecific',
+        name: 'Specific Muscle Groups by Day of the Week',
+        badge: 'DAY-BY-DAY MUSCLE SPLIT',
+        desc: 'Automatically assigns Mon: Back & Pull-Up Bar • Tue: Legs & Core • Wed: Push & Chest • Thu: Pull & Biceps • Fri: Legs & Glutes • Sat: Full Body Max-Out • Sun: Core & Mobility.'
+      },
+      {
+        id: 'samedaily',
+        name: 'Same Full-Body Routine Daily',
+        badge: 'CONSISTENT DAILY ROUTINE',
+        desc: 'Keeps a balanced full-body workout every day so you can master core lifts and build daily rep streaks effortlessly.'
+      }
+    ];
+
+    const GOAL_CARDS = [
+      { id: 'strength', name: 'Strength & Muscle', icon: 'fitness_center', desc: 'Build lean size and raw strength' },
+      { id: 'pullup_mastery', name: 'Pull-Up Mastery', icon: 'hardware', desc: 'Boost pull-up & chin-up max reps' },
+      { id: 'speed_endurance', name: 'Speed & Endurance', icon: 'directions_run', desc: 'High-output stamina & conditioning' },
+      { id: 'core_conditioning', name: 'Core & Conditioning', icon: 'self_improvement', desc: 'Defined abs & athletic stability' }
+    ];
+
+    const EQUIPMENT_CARDS = [
+      { id: 'pullup_bar', name: 'Pull-Up Bar', icon: 'hardware', desc: 'Pull-ups, chin-ups & hanging leg raises' },
+      { id: 'bodyweight', name: 'Bodyweight', icon: 'accessibility_new', desc: 'Push-ups, squats, lunges & planks' },
+      { id: 'dumbbells', name: 'Dumbbells', icon: 'exercise', desc: 'Goblet squats, rows, presses & curls' },
+      { id: 'dip_bars', name: 'Dip Bars / Bench', icon: 'chair', desc: 'Parallel dips & split squats' },
+      { id: 'barbell', name: 'Barbell', icon: 'fitness_center', desc: 'Heavy squats, rows & overhead press' },
+      { id: 'bands', name: 'Resistance Bands', icon: 'all_inclusive', desc: 'Pulldowns, curls & shoulder work' }
+    ];
+
+    const MODIFIER_CARDS = [
+      { id: 'dropsets', name: 'Drop Sets', icon: 'trending_down', desc: 'Reduce weight 25% on final set for immediate burnout reps' },
+      { id: 'supersets', name: 'Supersets (A1 + A2)', icon: 'sync_alt', desc: 'Pair two movements back-to-back with zero rest between' },
+      { id: 'maxout', name: 'Max-Out AMRAP Sets', icon: 'local_fire_department', desc: 'Track max unbroken reps on your final set to set new PRs' }
+    ];
+
+    const accountsCache = {};
+
+    let state = {
+      username: '',
+      password: '',
+      wizardStep: 1,
+      viewMode: 'classic', // 'classic' | 'advanced'
+      basis: ['calisthenics', 'hypertrophy'],
+      structures: ['dayspecific'],
+      durationMins: 45,
+      daysPerWeek: 4,
+      goals: ['strength', 'pullup_mastery'],
+      equipment: ['pullup_bar', 'bodyweight', 'dumbbells'],
+      modifiers: ['dropsets', 'supersets', 'maxout'],
+      streak: 1,
+      totalReps: 0,
+      lastWorkoutIso: '',
+      historyDates: [],
+      prs: {
+        'Overhand Pull-Ups': 12,
+        'Full-Range Push-Ups': 32,
+        'Goblet / Deep Squats': 40
+      },
+      activeDayIndex: new Date().getDay(), // 0=Sunday .. 6=Saturday
+      todayStage: 'prompt', // 'prompt' | 'review'
+      weeklyPlan: []
+    };
+
+    function getTodayIso(d = new Date()) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    /* =========================================================================
+       2. GENERATE WEEKLY WORKOUT PLAN (ASSIGNED BY DAY OF WEEK OR DAILY)
+       ========================================================================= */
+    function generateWorkoutPlan() {
+      const hasPullup = state.equipment.includes('pullup_bar');
+      const hasDB = state.equipment.includes('dumbbells');
+      const hasDip = state.equipment.includes('dip_bars');
+      const hasBarbell = state.equipment.includes('barbell');
+      const hasBands = state.equipment.includes('bands');
+
+      const hasDrop = state.modifiers.includes('dropsets');
+      const hasSuper = state.modifiers.includes('supersets');
+      const hasMax = state.modifiers.includes('maxout');
+
+      const baseSets = state.durationMins <= 15 ? 2 : state.durationMins >= 60 ? 4 : 3;
+      const useSameDaily = state.structures.includes('samedaily') && !state.structures.includes('dayspecific');
+
+      function createSetRows(count, targetReps, tagType) {
+        return Array.from({ length: count }, (_, idx) => {
+          const isLast = idx === count - 1;
+          let typeLabel = 'Working Set';
+          if (isLast && tagType === 'AMRAP') typeLabel = 'Max-Out AMRAP';
+          else if (isLast && tagType === 'DROP') typeLabel = 'Drop Set (-25%)';
+          else if (tagType === 'SUPER') typeLabel = 'Superset A1/A2';
+          return {
+            setNum: idx + 1,
+            targetReps,
+            loggedReps: targetReps,
+            typeLabel,
+            rpe: isLast ? '9.5' : '8.0',
+            done: false
+          };
+        });
+      }
+
+      if (useSameDaily) {
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        state.weeklyPlan = dayNames.map((dayName, idx) => ({
+          dayIndex: idx,
+          dayName,
+          muscleGroup: 'Full-Body Daily Routine',
+          exercises: [
+            {
+              name: hasPullup ? 'Overhand Pull-Ups' : hasBands ? 'Band Lat Pulldowns' : 'Inverted Back Rows',
+              sets: baseSets,
+              reps: 10,
+              tag: hasMax ? 'MAX-OUT AMRAP' : 'UPPER PULL',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets, 10, hasMax ? 'AMRAP' : 'STD')
+            },
+            {
+              name: hasDip ? 'Parallel Bar Dips & Push-Ups' : 'Full-Range Push-Ups',
+              sets: baseSets,
+              reps: 15,
+              tag: hasSuper ? 'SUPERSET A1+A2' : 'UPPER PUSH',
+              camKey: 'pushup',
+              setDetails: createSetRows(baseSets, 15, hasSuper ? 'SUPER' : 'STD')
+            },
+            {
+              name: hasBarbell ? 'Barbell Back Squats' : hasDB ? 'Dumbbell Goblet Squats' : 'Deep Bodyweight Squats',
+              sets: baseSets,
+              reps: 15,
+              tag: hasDrop ? 'DROP SET' : 'LOWER BODY',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets, 15, hasDrop ? 'DROP' : 'STD')
+            },
+            {
+              name: hasPullup ? 'Hanging Knee / Leg Raises' : 'Abdominal V-Ups & Plank',
+              sets: baseSets,
+              reps: 15,
+              tag: 'CORE FINISHER',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets, 15, 'STD')
+            }
+          ]
+        }));
+        return;
+      }
+
+      // Day-of-the-Week Specific Muscle Group Split (0=Sunday .. 6=Saturday)
+      state.weeklyPlan = [
+        {
+          dayIndex: 0,
+          dayName: 'Sunday',
+          muscleGroup: 'Core & Active Recovery',
+          exercises: [
+            {
+              name: hasPullup ? 'Hanging Knee Raises & Dead Hang' : 'Abdominal V-Ups & Plank',
+              sets: baseSets,
+              reps: 15,
+              tag: 'CORE & DECOMPRESSION',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets, 15, 'STD')
+            },
+            {
+              name: 'Tempo Bodyweight Squats',
+              sets: baseSets,
+              reps: 15,
+              tag: 'LOWER MOBILITY',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets, 15, 'STD')
+            },
+            {
+              name: 'Controlled Push-Ups',
+              sets: baseSets,
+              reps: 12,
+              tag: hasMax ? 'MAX-OUT AMRAP' : 'UPPER FLOW',
+              camKey: 'pushup',
+              setDetails: createSetRows(baseSets, 12, hasMax ? 'AMRAP' : 'STD')
+            }
+          ]
+        },
+        {
+          dayIndex: 1,
+          dayName: 'Monday',
+          muscleGroup: 'Back & Pull-Up Bar',
+          exercises: [
+            {
+              name: hasPullup ? 'Overhand Pull-Ups' : 'Bent-Over Back Rows',
+              sets: baseSets + 1,
+              reps: 10,
+              tag: hasMax ? 'MAX-OUT AMRAP' : 'PRIMARY LATS',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets + 1, 10, hasMax ? 'AMRAP' : 'STD')
+            },
+            {
+              name: hasDB ? 'Single-Arm Dumbbell Rows' : hasBarbell ? 'Barbell Bent-Over Rows' : 'Wide-Grip Pull-Ups',
+              sets: baseSets,
+              reps: 12,
+              tag: hasDrop ? 'DROP SET (-25%)' : 'UPPER BACK',
+              camKey: 'curl',
+              setDetails: createSetRows(baseSets, 12, hasDrop ? 'DROP' : 'STD')
+            },
+            {
+              name: hasPullup ? 'Underhand Chin-Ups' : 'Band Lat Pulldowns',
+              sets: baseSets,
+              reps: 10,
+              tag: hasSuper ? 'SUPERSET A1+A2' : 'BICEPS & LATS',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets, 10, hasSuper ? 'SUPER' : 'STD')
+            }
+          ]
+        },
+        {
+          dayIndex: 2,
+          dayName: 'Tuesday',
+          muscleGroup: 'Legs & Core',
+          exercises: [
+            {
+              name: hasBarbell ? 'Barbell Back Squats' : hasDB ? 'Goblet / Deep Squats' : 'Deep Bodyweight Squats',
+              sets: baseSets + 1,
+              reps: 12,
+              tag: hasDrop ? 'DROP SET' : 'QUAD COMPOUND',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets + 1, 12, hasDrop ? 'DROP' : 'STD')
+            },
+            {
+              name: hasDip ? 'Bulgarian Split Squats' : 'Reverse Lunges',
+              sets: baseSets,
+              reps: 12,
+              tag: hasSuper ? 'SUPERSET A1+A2' : 'UNILATERAL LEGS',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets, 12, hasSuper ? 'SUPER' : 'STD')
+            },
+            {
+              name: hasPullup ? 'Hanging Leg Raises' : 'Core Bicycle Crunches',
+              sets: baseSets,
+              reps: 15,
+              tag: hasMax ? 'MAX-OUT AMRAP' : 'CORE STABILITY',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets, 15, hasMax ? 'AMRAP' : 'STD')
+            }
+          ]
+        },
+        {
+          dayIndex: 3,
+          dayName: 'Wednesday',
+          muscleGroup: 'Push, Chest & Shoulders',
+          exercises: [
+            {
+              name: hasDip ? 'Parallel Bar Dips & Push-Ups' : 'Full-Range Push-Ups',
+              sets: baseSets + 1,
+              reps: 15,
+              tag: hasMax ? 'MAX-OUT AMRAP' : 'CHEST & TRICEPS',
+              camKey: 'pushup',
+              setDetails: createSetRows(baseSets + 1, 15, hasMax ? 'AMRAP' : 'STD')
+            },
+            {
+              name: hasDB ? 'Dumbbell Overhead Press' : hasBarbell ? 'Barbell Overhead Press' : 'Pike Shoulder Push-Ups',
+              sets: baseSets,
+              reps: 10,
+              tag: hasDrop ? 'DROP SET (-25%)' : 'SHOULDER PRESS',
+              camKey: 'press',
+              setDetails: createSetRows(baseSets, 10, hasDrop ? 'DROP' : 'STD')
+            },
+            {
+              name: 'Diamond Tricep Push-Ups',
+              sets: baseSets,
+              reps: 12,
+              tag: hasSuper ? 'SUPERSET A1+A2' : 'LOCKOUT FINISHER',
+              camKey: 'pushup',
+              setDetails: createSetRows(baseSets, 12, hasSuper ? 'SUPER' : 'STD')
+            }
+          ]
+        },
+        {
+          dayIndex: 4,
+          dayName: 'Thursday',
+          muscleGroup: 'Pull & Biceps',
+          exercises: [
+            {
+              name: hasPullup ? 'Close-Grip Chin-Ups' : 'Underhand Inverted Rows',
+              sets: baseSets + 1,
+              reps: 10,
+              tag: hasMax ? 'MAX-OUT AMRAP' : 'LAT & BICEP',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets + 1, 10, hasMax ? 'AMRAP' : 'STD')
+            },
+            {
+              name: hasDB ? 'Dumbbell Bicep Curls' : hasBands ? 'Band Bicep Curls' : 'Chin-Up Top Holds',
+              sets: baseSets,
+              reps: 12,
+              tag: hasDrop ? 'DROP SET (-25%)' : 'ARM ISOLATION',
+              camKey: 'curl',
+              setDetails: createSetRows(baseSets, 12, hasDrop ? 'DROP' : 'STD')
+            },
+            {
+              name: hasDB ? 'Hammer Curls & Bent Rows' : 'Scapular Pull-Up Shrugs',
+              sets: baseSets,
+              reps: 12,
+              tag: hasSuper ? 'SUPERSET A1+A2' : 'UPPER PULL',
+              camKey: 'curl',
+              setDetails: createSetRows(baseSets, 12, hasSuper ? 'SUPER' : 'STD')
+            }
+          ]
+        },
+        {
+          dayIndex: 5,
+          dayName: 'Friday',
+          muscleGroup: 'Legs & Glutes',
+          exercises: [
+            {
+              name: hasDB ? 'Dumbbell Sumo Squats' : hasBarbell ? 'Barbell Back Squats' : 'Explosive Jump Squats',
+              sets: baseSets + 1,
+              reps: 14,
+              tag: hasDrop ? 'DROP SET' : 'GLUTE & QUAD',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets + 1, 14, hasDrop ? 'DROP' : 'STD')
+            },
+            {
+              name: 'Walking Lunges / Split Squats',
+              sets: baseSets,
+              reps: 12,
+              tag: hasSuper ? 'SUPERSET A1+A2' : 'POSTERIOR CHAIN',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets, 12, hasSuper ? 'SUPER' : 'STD')
+            },
+            {
+              name: 'Squat Burnout Finisher',
+              sets: 2,
+              reps: 25,
+              tag: 'MAX-OUT AMRAP',
+              camKey: 'squat',
+              setDetails: createSetRows(2, 25, 'AMRAP')
+            }
+          ]
+        },
+        {
+          dayIndex: 6,
+          dayName: 'Saturday',
+          muscleGroup: 'Full Body Supersets & Max-Out',
+          exercises: [
+            {
+              name: hasPullup ? 'Overhand Pull-Ups' : 'Back Row Max-Out',
+              sets: baseSets,
+              reps: 12,
+              tag: 'SUPERSET A1 • MAX-OUT',
+              camKey: 'pullup',
+              setDetails: createSetRows(baseSets, 12, 'AMRAP')
+            },
+            {
+              name: hasDip ? 'Parallel Bar Dips & Push-Ups' : 'Full-Range Push-Ups',
+              sets: baseSets,
+              reps: 15,
+              tag: 'SUPERSET A2 • MAX-OUT',
+              camKey: 'pushup',
+              setDetails: createSetRows(baseSets, 15, 'AMRAP')
+            },
+            {
+              name: hasDB ? 'Goblet Squats & Overhead Press' : 'Deep Squats & Core Finisher',
+              sets: baseSets,
+              reps: 12,
+              tag: hasDrop ? 'DROP SET FINISHER' : 'FULL BODY CONDITIONING',
+              camKey: 'squat',
+              setDetails: createSetRows(baseSets, 12, hasDrop ? 'DROP' : 'STD')
+            }
+          ]
+        }
+      ];
+    }
+
+    /* =========================================================================
+       3. STORAGE & ACCOUNT PERSISTENCE
+       ========================================================================= */
+    function loadAccountsFromLocal() {
+      try {
+        const raw = localStorage.getItem('pulsefit_ios_accounts_v1');
+        if (raw) Object.assign(accountsCache, JSON.parse(raw));
+      } catch (e) {}
+    }
+
+    function saveCurrentAccountState() {
+      const uname = (state.username || 'Guest').trim();
+      const key = uname.toLowerCase();
+      const copy = JSON.parse(JSON.stringify(state));
+      accountsCache[key] = copy;
+
+      try {
+        localStorage.setItem('pulsefit_ios_accounts_v1', JSON.stringify(accountsCache));
+      } catch (e) {}
+
+      if (window.saveUserCloud && key !== 'guest') {
+        window.saveUserCloud(uname, copy);
+      }
+    }
+
+    function handleContinueSetupStep1() {
+      const u = document.getElementById('authUsernameInput').value.trim();
+      const p = document.getElementById('authPasswordInput').value.trim();
+      const msg = document.getElementById('authFeedbackMsg');
+
+      if (!u || !p) {
+        msg.innerText = 'Please enter a username and password to continue.';
+        return;
+      }
+
+      state.username = u;
+      state.password = p;
+      msg.innerText = '';
+      goToWizardStep(2);
+    }
+
+    async function handleSignInExisting() {
+      const u = document.getElementById('authUsernameInput').value.trim();
+      const p = document.getElementById('authPasswordInput').value.trim();
+      const msg = document.getElementById('authFeedbackMsg');
+
+      if (!u || !p) {
+        msg.innerText = 'Enter your saved username and password to sign in.';
+        return;
+      }
+
+      const key = u.toLowerCase();
+      let found = accountsCache[key];
+      if (!found && window.loadUserCloud) {
+        found = await window.loadUserCloud(u);
+      }
+
+      if (!found) {
+        msg.innerText = 'Account not found. Click "Continue Setup" to create it.';
+        return;
+      }
+      if (found.password && found.password !== p) {
+        msg.innerText = 'Incorrect password. Please try again.';
+        return;
+      }
+
+      state = {
+        ...state,
+        ...found,
+        activeDayIndex: new Date().getDay(),
+        todayStage: 'prompt'
+      };
+      if (!state.weeklyPlan || state.weeklyPlan.length === 0) {
+        generateWorkoutPlan();
+      }
+      saveCurrentAccountState();
+      showToast('Signed In', `Welcome back, @${state.username}!`);
+      enterMainInterface();
+    }
+
+    /* =========================================================================
+       4. 8-STEP WIZARD CONTROLLER
+       ========================================================================= */
+    function goToWizardStep(step) {
+      state.wizardStep = Math.max(1, Math.min(8, step));
+      renderWizardUI();
+    }
+
+    function stepWizard(delta) {
+      if (state.wizardStep === 8 && delta > 0) {
+        finishOnboardingAndBuildPlan();
+        return;
+      }
+      const next = state.wizardStep + delta;
+      if (next < 1 || next > 8) return;
+      state.wizardStep = next;
+      renderWizardUI();
+    }
+
+    function selectViewMode(mode) {
+      state.viewMode = mode;
+      renderWizardUI();
+    }
+
+    function toggleMultiArrayItem(field, id, allowEmpty = false) {
+      const arr = state[field] || [];
+      if (arr.includes(id)) {
+        if (allowEmpty || arr.length > 1) {
+          state[field] = arr.filter(x => x !== id);
+        }
+      } else {
+        state[field] = [...arr, id];
+      }
+      renderWizardUI();
+    }
+
+    function renderWizardUI() {
+      const s = state.wizardStep;
+      document.getElementById('wizStepPill').innerText = `STEP ${s} OF 8`;
+      document.getElementById('wizProgressBar').style.width = `${(s / 8) * 100}%`;
+      document.getElementById('wizSubStatus').innerText =
+        state.username ? `@${state.username} • ${state.viewMode === 'classic' ? 'Classic View' : 'Advanced View'}` : 'Account & Personalization';
+
+      for (let i = 1; i <= 8; i++) {
+        document.getElementById(`wiz-step-${i}`)?.classList.toggle('hidden', i !== s);
+      }
+
+      const footer = document.getElementById('wizNavFooter');
+      if (s === 1) {
+        footer.classList.add('hidden');
+        footer.classList.remove('flex');
+      } else {
+        footer.classList.remove('hidden');
+        footer.classList.add('flex');
+        document.getElementById('wizPrimaryNextLabel').innerText =
+          s === 8 ? 'Finish & Build Plan' : 'Next';
+      }
+
+      // Step 2: Classic vs Advanced cards
+      document.getElementById('viewCard-classic')?.classList.toggle('selected', state.viewMode === 'classic');
+      document.getElementById('viewCard-advanced')?.classList.toggle('selected', state.viewMode === 'advanced');
+
+      // Step 3: Starter Routine Basis (Multi-select)
+      const basisGrid = document.getElementById('wizBasisGrid');
+      if (basisGrid) {
+        basisGrid.innerHTML = '';
+        BASIS_OPTIONS.forEach(item => {
+          const active = state.basis.includes(item.id);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card flex items-start gap-3 ${active ? 'selected' : ''}`;
+          btn.onclick = () => toggleMultiArrayItem('basis', item.id);
+          btn.innerHTML = `
+            <span class="w-10 h-10 rounded-xl ${active ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#1D1D1F]'} flex items-center justify-center shrink-0">
+              <span class="material-symbols-rounded">${item.icon}</span>
+            </span>
+            <div>
+              <div class="text-sm font-extrabold text-[#1D1D1F]">${item.name}</div>
+              <div class="text-xs text-[#86868B] mt-0.5">${item.desc}</div>
+            </div>
+          `;
+          basisGrid.appendChild(btn);
+        });
+      }
+
+      // Step 4: Routine Structure (Multi-select / choice)
+      const structGrid = document.getElementById('wizStructureGrid');
+      if (structGrid) {
+        structGrid.innerHTML = '';
+        STRUCTURE_OPTIONS.forEach(st => {
+          const active = state.structures.includes(st.id);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card space-y-1.5 ${active ? 'selected' : ''}`;
+          btn.onclick = () => toggleMultiArrayItem('structures', st.id);
+          btn.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="ios-pill">${st.badge}</span>
+              <span class="material-symbols-rounded ${active ? 'text-[#007AFF]' : 'text-[#C7C7CC]'}">check_circle</span>
+            </div>
+            <div class="text-base font-extrabold text-[#1D1D1F] pt-1">${st.name}</div>
+            <p class="text-xs text-[#86868B] leading-relaxed">${st.desc}</p>
+          `;
+          structGrid.appendChild(btn);
+        });
+      }
+
+      // Step 5: Schedule (Time per Day & Days per Week)
+      const durRow = document.getElementById('wizDurationRow');
+      if (durRow) {
+        durRow.innerHTML = '';
+        [15, 30, 45, 60].forEach(m => {
+          const active = state.durationMins === m;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card text-center !p-3.5 ${active ? 'selected' : ''}`;
+          btn.onclick = () => { state.durationMins = m; renderWizardUI(); };
+          btn.innerHTML = `<div class="text-lg font-extrabold text-[#1D1D1F]">${m}m</div>`;
+          durRow.appendChild(btn);
+        });
+      }
+
+      const daysRow = document.getElementById('wizDaysRow');
+      if (daysRow) {
+        daysRow.innerHTML = '';
+        [3, 4, 5, 6].forEach(d => {
+          const active = state.daysPerWeek === d;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card text-center !p-3.5 ${active ? 'selected' : ''}`;
+          btn.onclick = () => { state.daysPerWeek = d; renderWizardUI(); };
+          btn.innerHTML = `<div class="text-base font-extrabold text-[#1D1D1F]">${d} Days</div>`;
+          daysRow.appendChild(btn);
+        });
+      }
+
+      // Step 6: Fitness Goals (Multi-Select)
+      const goalsGrid = document.getElementById('wizGoalsGrid');
+      if (goalsGrid) {
+        goalsGrid.innerHTML = '';
+        GOAL_CARDS.forEach(g => {
+          const active = state.goals.includes(g.id);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card flex items-start gap-3 ${active ? 'selected' : ''}`;
+          btn.onclick = () => toggleMultiArrayItem('goals', g.id);
+          btn.innerHTML = `
+            <span class="w-10 h-10 rounded-xl ${active ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#1D1D1F]'} flex items-center justify-center shrink-0">
+              <span class="material-symbols-rounded">${g.icon}</span>
+            </span>
+            <div>
+              <div class="text-sm font-extrabold text-[#1D1D1F]">${g.name}</div>
+              <div class="text-xs text-[#86868B] mt-0.5">${g.desc}</div>
+            </div>
+          `;
+          goalsGrid.appendChild(btn);
+        });
+      }
+
+      // Step 7: Equipment Locker (Multi-Select)
+      const equipGrid = document.getElementById('wizEquipGrid');
+      if (equipGrid) {
+        equipGrid.innerHTML = '';
+        EQUIPMENT_CARDS.forEach(eq => {
+          const active = state.equipment.includes(eq.id);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card flex items-start gap-3 ${active ? 'selected' : ''}`;
+          btn.onclick = () => toggleMultiArrayItem('equipment', eq.id);
+          btn.innerHTML = `
+            <span class="w-10 h-10 rounded-xl ${active ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#1D1D1F]'} flex items-center justify-center shrink-0">
+              <span class="material-symbols-rounded">${eq.icon}</span>
+            </span>
+            <div>
+              <div class="text-sm font-extrabold text-[#1D1D1F]">${eq.name}</div>
+              <div class="text-xs text-[#86868B] mt-0.5">${eq.desc}</div>
+            </div>
+          `;
+          equipGrid.appendChild(btn);
+        });
+      }
+
+      // Step 8: Intensity Modifiers (Multi-Select)
+      const modGrid = document.getElementById('wizModifiersGrid');
+      if (modGrid) {
+        modGrid.innerHTML = '';
+        MODIFIER_CARDS.forEach(m => {
+          const active = state.modifiers.includes(m.id);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `ios-option-card flex items-center justify-between gap-3 ${active ? 'selected' : ''}`;
+          btn.onclick = () => toggleMultiArrayItem('modifiers', m.id, true);
+          btn.innerHTML = `
+            <div class="flex items-center gap-3">
+              <span class="w-10 h-10 rounded-xl ${active ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#1D1D1F]'} flex items-center justify-center shrink-0">
+                <span class="material-symbols-rounded">${m.icon}</span>
+              </span>
+              <div>
+                <div class="text-sm font-extrabold text-[#1D1D1F]">${m.name}</div>
+                <div class="text-xs text-[#86868B]">${m.desc}</div>
+              </div>
+            </div>
+            <span class="material-symbols-rounded ${active ? 'text-[#007AFF]' : 'text-[#C7C7CC]'}">check_circle</span>
+          `;
+          modGrid.appendChild(btn);
+        });
+      }
+    }
+
+    function finishOnboardingAndBuildPlan() {
+      if (!state.username) {
+        const u = document.getElementById('authUsernameInput')?.value.trim();
+        state.username = u || 'Athlete';
+      }
+      generateWorkoutPlan();
+      state.activeDayIndex = new Date().getDay();
+      state.todayStage = 'prompt';
+      saveCurrentAccountState();
+      triggerConfetti();
+      showToast('Plan Ready', `Built your ${state.viewMode === 'classic' ? 'Classic' : 'Advanced'} workout plan!`);
+      enterMainInterface();
+    }
+
+    function enterMainInterface() {
+      if (!state.weeklyPlan || state.weeklyPlan.length === 0) {
+        generateWorkoutPlan();
+      }
+      document.getElementById('onboardingWizardView').classList.add('hidden');
+      const mainView = document.getElementById('mainAppView');
+      mainView.classList.remove('hidden');
+      mainView.classList.add('flex');
+      document.getElementById('returnToAppBtn').classList.remove('hidden');
+      switchTab('today');
+    }
+
+    function reopenWizard(stepNum = 2) {
+      document.getElementById('mainAppView').classList.add('hidden');
+      document.getElementById('mainAppView').classList.remove('flex');
+      document.getElementById('onboardingWizardView').classList.remove('hidden');
+      goToWizardStep(stepNum);
+    }
+
+    /* =========================================================================
+       5. 3-TAB MAIN INTERFACE & LIVE CLASSIC vs ADVANCED VIEW RENDERING
+       Classic View = Apple Fitness minimalist, huge typography, zero clutter.
+       Advanced View = Pro Gym Logger (Strong/Hevy/Fitbod) with set tables,
+                       intensity badges, RPE, volume stats, and PR inputs.
+       ========================================================================= */
+    function switchTab(tabId) {
+      ['today', 'plan', 'profile'].forEach(t => {
+        document.getElementById(`main-tab-${t}`)?.classList.toggle('hidden', t !== tabId);
+        const btn = document.getElementById(`tabBtn-${t}`);
+        if (btn) {
+          btn.className = t === tabId
+            ? 'flex flex-col items-center justify-center py-1.5 rounded-2xl text-[#007AFF] font-bold text-[11px] transition'
+            : 'flex flex-col items-center justify-center py-1.5 rounded-2xl text-[#86868B] font-semibold text-[11px] transition';
+        }
+      });
+      renderMainInterface();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function setViewModeLive(mode) {
+      state.viewMode = mode;
+      saveCurrentAccountState();
+      renderMainInterface();
+      showToast(
+        mode === 'classic' ? 'Classic View Active' : 'Advanced View Active',
+        mode === 'classic'
+          ? 'Switched to Apple Fitness minimalist layout.'
+          : 'Switched to Pro Gym Logger with full set tables & tags.'
+      );
+    }
+
+    function renderMainInterface() {
+      if (!state.weeklyPlan || state.weeklyPlan.length === 0) {
+        generateWorkoutPlan();
+      }
+
+      // Header segmented switcher & streak
+      const isClassic = state.viewMode === 'classic';
+      document.getElementById('hdrModeClassic').className = isClassic
+        ? 'px-2.5 py-1 rounded-lg transition bg-white text-[#007AFF] shadow-sm'
+        : 'px-2.5 py-1 rounded-lg transition text-[#86868B]';
+      document.getElementById('hdrModeAdvanced').className = !isClassic
+        ? 'px-2.5 py-1 rounded-lg transition bg-white text-[#007AFF] shadow-sm'
+        : 'px-2.5 py-1 rounded-lg transition text-[#86868B]';
+      document.getElementById('hdrStreakCount').innerText = state.streak;
+
+      renderTodayTab();
+      renderPlanTab();
+      renderProfileTab();
+    }
+
+    /* -------------------------------------------------------------------------
+       TAB 1: TODAY (CLASSIC VS ADVANCED)
+       ------------------------------------------------------------------------- */
+    function renderTodayTab() {
+      const container = document.getElementById('todayDynamicContainer');
+      const dayObj = state.weeklyPlan[state.activeDayIndex] || state.weeklyPlan[new Date().getDay()];
+      const totalSets = dayObj.exercises.reduce((sum, e) => sum + e.sets, 0);
+      const completedSets = dayObj.exercises.reduce(
+        (sum, e) => sum + e.setDetails.filter(s => s.done).length,
+        0
+      );
+      const pct = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
+
+      // 1. INITIAL PROMPT STATE ("Ready for your [Day] [Muscle Group] Workout?")
+      if (state.todayStage === 'prompt') {
+        if (state.viewMode === 'classic') {
+          // CLASSIC VIEW PROMPT: Ultra-clean Apple Fitness style hero card
+          container.innerHTML = `
+            <div class="ios-card p-8 sm:p-11 text-center space-y-6">
+              <span class="ios-pill mx-auto">${dayObj.dayName.toUpperCase()}</span>
+              <div class="space-y-2">
+                <h1 class="text-3xl sm:text-5xl font-black tracking-tight text-[#1D1D1F] leading-tight">
+                  Ready for your ${dayObj.dayName} <span class="text-[#007AFF]">${dayObj.muscleGroup}</span> Workout?
+                </h1>
+                <p class="text-base text-[#86868B]">
+                  ${dayObj.exercises.length} exercises • ${state.durationMins} mins
+                </p>
+              </div>
+              <div class="pt-2 max-w-xs mx-auto">
+                <button onclick="openTodayWorkoutReview()" class="btn-ios-primary w-full !py-4 text-base shadow-md">
+                  <span class="material-symbols-rounded">play_arrow</span>
+                  <span>Start Workout</span>
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          // ADVANCED VIEW PROMPT: Pro Gym Logger dashboard with volume breakdown & preview
+          const estReps = dayObj.exercises.reduce((sum, e) => sum + e.sets * e.reps, 0);
+          container.innerHTML = `
+            <div class="ios-card p-6 sm:p-8 space-y-6">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="ios-pill">PRO LOGGER • ${dayObj.dayName.toUpperCase()} SPLIT</span>
+                <span class="text-xs font-mono font-bold text-[#86868B]">EST. VOLUME: ${totalSets} SETS • ${estReps} REPS</span>
+              </div>
+
+              <div class="space-y-1.5">
+                <h1 class="text-2xl sm:text-4xl font-black tracking-tight text-[#1D1D1F]">
+                  Ready for your ${dayObj.dayName} <span class="text-[#007AFF]">${dayObj.muscleGroup}</span> Workout?
+                </h1>
+                <p class="text-sm text-[#86868B]">
+                  Includes ${state.modifiers.join(', ').toUpperCase() || 'STANDARD SETS'} • Assigned for ${dayObj.dayName}.
+                </p>
+              </div>
+
+              <!-- Pro Metrics Strip -->
+              <div class="grid grid-cols-3 gap-3 bg-[#F5F5F7] p-4 rounded-2xl border border-[#E5E5EA]">
+                <div>
+                  <span class="text-[11px] font-bold uppercase text-[#86868B] block">Target Split</span>
+                  <strong class="text-sm sm:text-base font-extrabold text-[#1D1D1F]">${dayObj.muscleGroup}</strong>
+                </div>
+                <div>
+                  <span class="text-[11px] font-bold uppercase text-[#86868B] block">Working Sets</span>
+                  <strong class="text-sm sm:text-base font-mono font-extrabold text-[#007AFF]">${completedSets} / ${totalSets} Sets</strong>
+                </div>
+                <div>
+                  <span class="text-[11px] font-bold uppercase text-[#86868B] block">Session Window</span>
+                  <strong class="text-sm sm:text-base font-mono font-extrabold text-[#1D1D1F]">${state.durationMins} Min</strong>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-3">
+                <button onclick="openTodayWorkoutReview()" class="btn-ios-primary flex-1 !py-4 text-base">
+                  <span class="material-symbols-rounded">play_arrow</span>
+                  <span>Start Workout & Open Logger</span>
+                </button>
+                <button onclick="switchTab('plan')" class="btn-ios-secondary !py-4">
+                  <span class="material-symbols-rounded">swap_horiz</span>
+                  <span>Switch Day</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      // 2. PRE-WORKOUT PLAN REVIEW & ACTIVE WORKOUT LOGGER STATE
+      if (state.viewMode === 'classic') {
+        // =====================================================================
+        // CLASSIC VIEW: Minimalist Apple Fitness Checklist (Zero technical clutter)
+        // =====================================================================
+        let cardsHtml = '';
+        dayObj.exercises.forEach((ex, exIdx) => {
+          const doneCount = ex.setDetails.filter(s => s.done).length;
+          const allDone = doneCount >= ex.sets;
+          cardsHtml += `
+            <div class="ios-card p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition ${
+              allDone ? 'bg-[#EBF4FF]/60 border-[#007AFF]' : ''
+            }">
+              <div class="space-y-1">
+                <div class="text-xs font-bold text-[#007AFF] uppercase tracking-wider">
+                  ${doneCount} of ${ex.sets} Sets Completed
+                </div>
+                <h3 class="text-xl font-extrabold text-[#1D1D1F]">${ex.name}</h3>
+                <p class="text-sm font-medium text-[#86868B]">${ex.sets} sets × ${ex.reps} reps</p>
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="checkOffNextSet(${state.activeDayIndex}, ${exIdx})" class="btn-ios-secondary !min-h-[44px] !py-2 !px-4 text-xs">
+                  <span class="material-symbols-rounded text-[#007AFF]" style="font-size:18px;">check_circle</span>
+                  <span>Check Off</span>
+                </button>
+                <button onclick="openTapPadForExercise(${state.activeDayIndex}, ${exIdx})" class="btn-ios-secondary !min-h-[44px] !py-2 !px-4 text-xs">
+                  <span class="material-symbols-rounded text-[#007AFF]" style="font-size:18px;">touch_app</span>
+                  <span>Tap</span>
+                </button>
+                <button onclick="openMinimalCameraForExercise(${state.activeDayIndex}, ${exIdx})" class="btn-ios-primary !min-h-[44px] !py-2 !px-4 text-xs">
+                  <span class="material-symbols-rounded" style="font-size:18px;">videocam</span>
+                  <span>Camera</span>
+                </button>
+              </div>
+            </div>
+          `;
+        });
+
+        container.innerHTML = `
+          <div class="ios-card p-6 sm:p-8 space-y-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="ios-pill">WORKOUT REVIEW</span>
+                <h2 class="text-2xl sm:text-3xl font-black text-[#1D1D1F] mt-1">${dayObj.muscleGroup}</h2>
+              </div>
+              <button onclick="state.todayStage='prompt'; renderTodayTab();" class="btn-ios-secondary !min-h-[38px] !py-1.5 !px-3.5 text-xs">
+                Back
+              </button>
+            </div>
+
+            <div class="w-full h-2.5 bg-[#E5E5EA] rounded-full overflow-hidden">
+              <div class="h-full bg-[#007AFF] transition-all duration-300" style="width:${pct}%"></div>
+            </div>
+          </div>
+
+          <div class="space-y-3.5">
+            ${cardsHtml}
+          </div>
+
+          <div class="pt-2">
+            <button onclick="completeWorkoutSession()" class="btn-ios-primary w-full !py-4 text-base">
+              <span class="material-symbols-rounded">verified</span>
+              <span>Complete Workout (${pct}%)</span>
+            </button>
+          </div>
+        `;
+      } else {
+        // =====================================================================
+        // ADVANCED VIEW: Strong / Hevy / Fitbod Pro Set Table Logger
+        // =====================================================================
+        let tablesHtml = '';
+        dayObj.exercises.forEach((ex, exIdx) => {
+          const prVal = state.prs[ex.name] || ex.reps;
+          let rowsHtml = '';
+          ex.setDetails.forEach((sRow, sIdx) => {
+            rowsHtml += `
+              <tr class="border-t border-[#E5E5EA] ${sRow.done ? 'bg-[#EBF4FF]/70' : ''}">
+                <td class="py-2.5 px-3 font-mono text-xs font-bold text-[#1D1D1F]">#${sRow.setNum}</td>
+                <td class="py-2.5 px-3">
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#F2F2F7] text-[#1D1D1F]">
+                    ${sRow.typeLabel}
+                  </span>
+                </td>
+                <td class="py-2.5 px-3 font-mono text-xs font-semibold text-[#86868B]">${sRow.targetReps} reps</td>
+                <td class="py-2.5 px-3 font-mono text-xs font-bold text-[#1D1D1F]">RPE ${sRow.rpe}</td>
+                <td class="py-2.5 px-3 text-right">
+                  <button onclick="toggleSpecificSetRow(${state.activeDayIndex}, ${exIdx}, ${sIdx})" class="px-3 py-1 rounded-lg text-xs font-bold transition ${
+                    sRow.done
+                      ? 'bg-[#007AFF] text-white'
+                      : 'bg-[#F2F2F7] text-[#1D1D1F] hover:bg-[#E5E5EA]'
+                  }">
+                    ${sRow.done ? '✓ Logged' : 'Check Off'}
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+
+          tablesHtml += `
+            <div class="ios-card p-5 sm:p-6 space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="ios-pill">${ex.tag}</span>
+                    <span class="text-xs font-mono font-bold text-[#86868B]">1-SET PR: ${prVal} REPS</span>
+                  </div>
+                  <h3 class="text-lg sm:text-xl font-extrabold text-[#1D1D1F] mt-1">${ex.name}</h3>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button onclick="checkOffNextSet(${state.activeDayIndex}, ${exIdx})" class="btn-ios-secondary !min-h-[38px] !py-1.5 !px-3 text-xs">
+                    <span>✓ Next Set</span>
+                  </button>
+                  <button onclick="openTapPadForExercise(${state.activeDayIndex}, ${exIdx})" class="btn-ios-secondary !min-h-[38px] !py-1.5 !px-3 text-xs">
+                    <span class="material-symbols-rounded text-[#007AFF]" style="font-size:16px;">touch_app</span>
+                    <span>Tap Pad</span>
+                  </button>
+                  <button onclick="openMinimalCameraForExercise(${state.activeDayIndex}, ${exIdx})" class="btn-ios-primary !min-h-[38px] !py-1.5 !px-3.5 text-xs">
+                    <span class="material-symbols-rounded" style="font-size:16px;">videocam</span>
+                    <span>AI Camera</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Set-by-Set Pro Table -->
+              <div class="overflow-x-auto rounded-2xl border border-[#E5E5EA]">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-[#F5F5F7] text-[10px] font-extrabold uppercase tracking-wider text-[#86868B]">
+                      <th class="py-2 px-3">Set</th>
+                      <th class="py-2 px-3">Modifier</th>
+                      <th class="py-2 px-3">Target</th>
+                      <th class="py-2 px-3">Intensity</th>
+                      <th class="py-2 px-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        });
+
+        container.innerHTML = `
+          <div class="ios-card p-6 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span class="ios-pill">ADVANCED PRO LOGGER • PRE-WORKOUT & SET TABLE</span>
+                <h2 class="text-2xl font-black text-[#1D1D1F] mt-1">${dayObj.dayName} — ${dayObj.muscleGroup}</h2>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="state.todayStage='prompt'; renderTodayTab();" class="btn-ios-secondary !min-h-[38px] !py-1.5 !px-3.5 text-xs">
+                  Overview
+                </button>
+                <button onclick="completeWorkoutSession()" class="btn-ios-primary !min-h-[38px] !py-1.5 !px-4 text-xs">
+                  Finish & Log Streak (${pct}%)
+                </button>
+              </div>
+            </div>
+
+            <div class="w-full h-2 bg-[#E5E5EA] rounded-full overflow-hidden">
+              <div class="h-full bg-[#007AFF] transition-all duration-300" style="width:${pct}%"></div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            ${tablesHtml}
+          </div>
+        `;
+      }
+    }
+
+    function openTodayWorkoutReview() {
+      state.todayStage = 'review';
+      renderTodayTab();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    /* -------------------------------------------------------------------------
+       TAB 2: PLAN (CLASSIC VS ADVANCED WEEKLY ROUTINE)
+       ------------------------------------------------------------------------- */
+    function renderPlanTab() {
+      const container = document.getElementById('planDynamicContainer');
+      const todayIdx = new Date().getDay();
+
+      let daysHtml = '';
+      state.weeklyPlan.forEach((d, idx) => {
+        const isToday = idx === todayIdx;
+        const isActive = idx === state.activeDayIndex;
+        const totalSets = d.exercises.reduce((acc, e) => acc + e.sets, 0);
+
+        if (state.viewMode === 'classic') {
+          daysHtml += `
+            <div onclick="selectPlanDay(${idx})" class="ios-card p-5 cursor-pointer transition flex items-center justify-between gap-4 ${
+              isActive ? 'border-[#007AFF] bg-[#EBF4FF]/40' : ''
+            }">
+              <div>
+                <span class="text-xs font-extrabold uppercase ${isToday ? 'text-[#007AFF]' : 'text-[#86868B]'}">
+                  ${d.dayName} ${isToday ? '• TODAY' : ''}
+                </span>
+                <h3 class="text-lg font-extrabold text-[#1D1D1F] mt-0.5">${d.muscleGroup}</h3>
+                <p class="text-xs text-[#86868B] mt-0.5">${d.exercises.length} exercises</p>
+              </div>
+              <span class="material-symbols-rounded text-[#007AFF]">chevron_right</span>
+            </div>
+          `;
+        } else {
+          daysHtml += `
+            <div onclick="selectPlanDay(${idx})" class="ios-card p-5 cursor-pointer transition space-y-3 ${
+              isActive ? 'border-[#007AFF] bg-[#EBF4FF]/40' : ''
+            }">
+              <div class="flex items-center justify-between">
+                <span class="ios-pill">${d.dayName.toUpperCase()} ${isToday ? '• TODAY' : ''}</span>
+                <span class="text-xs font-mono font-bold text-[#86868B]">${d.exercises.length} Lifts • ${totalSets} Sets</span>
+              </div>
+              <h3 class="text-lg font-extrabold text-[#1D1D1F]">${d.muscleGroup}</h3>
+              <div class="space-y-1 text-xs text-[#86868B]">
+                ${d.exercises.map(e => `<div class="flex justify-between"><span>• ${e.name}</span><span class="font-mono font-semibold">${e.sets}×${e.reps} (${e.tag})</span></div>`).join('')}
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      container.innerHTML = `
+        <div class="flex items-center justify-between px-1">
+          <div>
+            <h2 class="text-2xl font-black text-[#1D1D1F]">Weekly Plan</h2>
+            <p class="text-xs text-[#86868B]">Tap any day to load its workout or customize your setup.</p>
+          </div>
+          <button onclick="reopenWizard(2)" class="btn-ios-secondary !min-h-[40px] !py-2 !px-4 text-xs">
+            <span class="material-symbols-rounded" style="font-size:17px;">tune</span>
+            <span>Customize</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 ${state.viewMode === 'advanced' ? 'sm:grid-cols-2' : ''} gap-3.5">
+          ${daysHtml}
+        </div>
+      `;
+    }
+
+    function selectPlanDay(idx) {
+      state.activeDayIndex = idx;
+      state.todayStage = 'prompt';
+      switchTab('today');
+    }
+
+    /* -------------------------------------------------------------------------
+       TAB 3: PROFILE (STREAK, PRS, VIEW MODE SWITCHER & ACCOUNT)
+       ------------------------------------------------------------------------- */
+    function renderProfileTab() {
+      const container = document.getElementById('profileDynamicContainer');
+      const isClassic = state.viewMode === 'classic';
+
+      let prCardsHtml = '';
+      Object.entries(state.prs).forEach(([name, reps]) => {
+        prCardsHtml += `
+          <div class="p-4 rounded-2xl bg-[#F5F5F7] border border-[#E5E5EA] flex items-center justify-between">
+            <div>
+              <span class="text-[10px] font-bold uppercase text-[#007AFF]">1-SET MAX PR</span>
+              <div class="text-sm font-extrabold text-[#1D1D1F] mt-0.5">${name}</div>
+            </div>
+            <div class="text-2xl font-black font-mono text-[#1D1D1F]">${reps}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = `
+        <!-- Streak & User Card -->
+        <div class="ios-card p-6 sm:p-7 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-[#EBF4FF] text-[#007AFF] flex items-center justify-center">
+              <span class="material-symbols-rounded" style="font-size:30px;">local_fire_department</span>
+            </div>
+            <div>
+              <div class="text-2xl font-black text-[#1D1D1F]">${state.streak} Day Streak</div>
+              <p class="text-xs font-medium text-[#86868B]">
+                Account: <strong class="text-[#1D1D1F]">@${state.username || 'Athlete'}</strong> • Total Reps: <strong>${state.totalReps}</strong>
+              </p>
+            </div>
+          </div>
+          <button onclick="completeWorkoutSession()" class="btn-ios-primary !min-h-[42px] !py-2 !px-4 text-xs">
+            Log Today's Workout
+          </button>
+        </div>
+
+        <!-- Live Classic vs Advanced View Switcher Card -->
+        <div class="ios-card p-6 sm:p-7 space-y-4">
+          <div>
+            <span class="ios-pill">INTERFACE EXPERIENCE</span>
+            <h3 class="text-lg font-extrabold text-[#1D1D1F] mt-1">App View Mode</h3>
+            <p class="text-xs text-[#86868B]">Switch live between Classic minimalist view and Advanced pro logger view.</p>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button onclick="setViewModeLive('classic')" class="ios-option-card ${isClassic ? 'selected' : ''}">
+              <div class="text-sm font-extrabold text-[#1D1D1F]">Classic View</div>
+              <div class="text-xs text-[#86868B] mt-0.5">Minimalist Apple Fitness cards & effortless flow</div>
+            </button>
+            <button onclick="setViewModeLive('advanced')" class="ios-option-card ${!isClassic ? 'selected' : ''}">
+              <div class="text-sm font-extrabold text-[#1D1D1F]">Advanced View</div>
+              <div class="text-xs text-[#86868B] mt-0.5">Pro Gym Logger set tables, modifiers & RPE</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Personal Records Vault -->
+        <div class="ios-card p-6 sm:p-7 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-extrabold text-[#1D1D1F]">Max-Out Personal Records</h3>
+            <span class="text-xs font-semibold text-[#86868B]">Auto-saved from sets</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            ${prCardsHtml}
+          </div>
+        </div>
+
+        <!-- Account & Setup Actions -->
+        <div class="ios-card p-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-sm font-extrabold text-[#1D1D1F]">Setup & Account</div>
+            <div class="text-xs text-[#86868B]">Retake the 8-step survey or switch accounts.</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="reopenWizard(2)" class="btn-ios-secondary !min-h-[40px] !py-2 !px-4 text-xs">
+              Edit Setup
+            </button>
+            <button onclick="reopenWizard(1)" class="btn-ios-secondary !min-h-[40px] !py-2 !px-4 text-xs">
+              Switch Account
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       6. COMPLETING SETS (CHECK OFF, TAP PAD, & MINIMALIST AI CAMERA)
+       ========================================================================= */
+    let activeTracker = {
+      dayIdx: 0,
+      exIdx: 0,
+      exerciseName: 'Pull-Ups',
+      camKey: 'pullup',
+      reps: 0,
+      targetReps: 10,
+      stage: 'UP',
+      lastRepTs: 0
+    };
+
+    function checkOffNextSet(dayIdx, exIdx) {
+      const ex = state.weeklyPlan[dayIdx]?.exercises[exIdx];
+      if (!ex) return;
+
+      const nextRow = ex.setDetails.find(r => !r.done);
+      if (nextRow) {
+        nextRow.done = true;
+        state.totalReps += nextRow.targetReps;
+        saveCurrentAccountState();
+        renderMainInterface();
+        showToast('Set Completed', `Checked off Set #${nextRow.setNum} of ${ex.name}.`);
+      } else {
+        showToast('All Sets Done', `All sets for ${ex.name} are completed!`);
+      }
+    }
+
+    function toggleSpecificSetRow(dayIdx, exIdx, sIdx) {
+      const ex = state.weeklyPlan[dayIdx]?.exercises[exIdx];
+      const row = ex?.setDetails[sIdx];
+      if (!row) return;
+
+      row.done = !row.done;
+      state.totalReps = Math.max(0, state.totalReps + (row.done ? row.targetReps : -row.targetReps));
+      saveCurrentAccountState();
+      renderMainInterface();
+    }
+
+    function bindTrackerExercise(dayIdx, exIdx) {
+      const ex = state.weeklyPlan[dayIdx]?.exercises[exIdx];
+      if (!ex) return;
+      activeTracker.dayIdx = dayIdx;
+      activeTracker.exIdx = exIdx;
+      activeTracker.exerciseName = ex.name;
+      activeTracker.camKey = ex.camKey || 'pullup';
+      activeTracker.reps = 0;
+      activeTracker.targetReps = ex.reps;
+      activeTracker.stage = 'READY';
+      syncTrackerNumbersUI();
+    }
+
+    function syncTrackerNumbersUI() {
+      document.getElementById('tapPadTitle').innerText = activeTracker.exerciseName;
+      document.getElementById('tapPadNumber').innerText = activeTracker.reps;
+      document.getElementById('tapPadTarget').innerText = `Target: ${activeTracker.targetReps} Reps`;
+
+      document.getElementById('camCornerExerciseLabel').innerText = activeTracker.exerciseName;
+      document.getElementById('camCornerRepCount').innerText = activeTracker.reps;
+      document.getElementById('camCornerTargetCount').innerText = `/ ${activeTracker.targetReps}`;
+    }
+
+    function incrementActiveRep() {
+      activeTracker.reps += 1;
+      state.totalReps += 1;
+      syncTrackerNumbersUI();
+
+      // Pop animation on corner rep badge & tap pad
+      ['camCornerRepCount', 'tapPadNumber'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.classList.remove('rep-pop');
+          void el.offsetWidth;
+          el.classList.add('rep-pop');
+        }
+      });
+    }
+
+    function resetActiveRepCount() {
+      activeTracker.reps = 0;
+      syncTrackerNumbersUI();
+    }
+
+    function finishSetFromTracker() {
+      const ex = state.weeklyPlan[activeTracker.dayIdx]?.exercises[activeTracker.exIdx];
+      if (!ex) return;
+
+      const nextRow = ex.setDetails.find(r => !r.done);
+      if (nextRow) {
+        nextRow.done = true;
+        nextRow.loggedReps = activeTracker.reps || nextRow.targetReps;
+      }
+
+      if (activeTracker.reps > (state.prs[ex.name] || 0)) {
+        state.prs[ex.name] = activeTracker.reps;
+      }
+
+      saveCurrentAccountState();
+      renderMainInterface();
+      if (activeTracker.reps > 0 || nextRow) {
+        showToast('Set Saved', `Logged ${activeTracker.reps || ex.reps} reps for ${ex.name}.`);
+      }
+    }
+
+    /* -------------------------------------------------------------------------
+       FULL-SCREEN TAP PAD
+       ------------------------------------------------------------------------- */
+    function openTapPadForExercise(dayIdx, exIdx) {
+      bindTrackerExercise(dayIdx, exIdx);
+      const modal = document.getElementById('tapPadOverlay');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeTapPadModal() {
+      const modal = document.getElementById('tapPadOverlay');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function handleTapPadClick(e) {
+      spawnTapWave(e.clientX, e.clientY, document.getElementById('tapPadOverlay'));
+      incrementActiveRep();
+      if (activeTracker.reps >= activeTracker.targetReps) {
+        finishSetFromTracker();
+        closeTapPadModal();
+      }
+    }
+
+    function spawnTapWave(x, y, containerEl) {
+      if (!containerEl) return;
+      const wave = document.createElement('div');
+      wave.className = 'tap-wave';
+      wave.style.left = `${x - 55}px`;
+      wave.style.top = `${y - 55}px`;
+      containerEl.appendChild(wave);
+      setTimeout(() => wave.remove(), 480);
+    }
+
+    /* =========================================================================
+       7. ULTRA-SIMPLE MINIMALIST AI CAMERA REP TRACKER
+          - Live video + MediaPipe Pose tracking dots & skeleton lines
+          - Corner rep counter badge
+          - Tapping ANYWHERE on the camera canvas adds +1 rep
+          - Conditional Flip Camera icon button (only if >1 camera or mobile facingMode supported)
+       ========================================================================= */
+    const camVideoEl = document.getElementById('liveCameraVideo');
+    const camCanvasEl = document.getElementById('liveCameraCanvas');
+    const camCtx = camCanvasEl.getContext('2d');
+
+    let poseDetector = null;
+    let currentStream = null;
+    let cameraLoopActive = false;
+    let cameraRafId = null;
+    let currentFacingMode = 'user';
+    let availableVideoDevices = [];
+    let currentDeviceIndex = 0;
+    let fallbackSimPhase = 0;
+
+    async function checkCameraSwitchSupport() {
+      const flipBtn = document.getElementById('flipCameraBtn');
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+          flipBtn.classList.add('hidden');
+          return;
+        }
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        availableVideoDevices = devices.filter(d => d.kind === 'videoinput');
+        const isMobileTouch = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+        if (availableVideoDevices.length > 1 || isMobileTouch) {
+          flipBtn.classList.remove('hidden');
+          flipBtn.classList.add('flex');
+        } else {
+          flipBtn.classList.add('hidden');
+          flipBtn.classList.remove('flex');
+        }
+      } catch (e) {
+        flipBtn.classList.add('hidden');
+      }
+    }
+
+    async function openMinimalCameraForExercise(dayIdx, exIdx) {
+      bindTrackerExercise(dayIdx, exIdx);
+      const modal = document.getElementById('minimalCameraModal');
+      modal.classList.remove('hidden');
+
+      resizeCameraCanvas();
+      window.addEventListener('resize', resizeCameraCanvas);
+
+      await initMediaPipePoseIfNeeded();
+      await startCameraStream();
+    }
+
+    function resizeCameraCanvas() {
+      camCanvasEl.width = window.innerWidth;
+      camCanvasEl.height = window.innerHeight;
+    }
+
+    async function initMediaPipePoseIfNeeded() {
+      if (poseDetector) return;
+      try {
+        poseDetector = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseDetector.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          minDetectionConfidence: 0.55,
+          minTrackingConfidence: 0.55
+        });
+        poseDetector.onResults(onMinimalPoseResults);
+      } catch (e) {
+        console.warn("MediaPipe init fallback:", e);
+      }
+    }
+
+    async function startCameraStream() {
+      stopActiveCameraStream();
+      cameraLoopActive = true;
+
+      try {
+        const videoConstraints = availableVideoDevices.length > 1 && availableVideoDevices[currentDeviceIndex]?.deviceId
+          ? { deviceId: { exact: availableVideoDevices[currentDeviceIndex].deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: currentFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } };
+
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: false
+        });
+        camVideoEl.srcObject = currentStream;
+        await camVideoEl.play();
+
+        await checkCameraSwitchSupport();
+        pumpCameraFrames();
+      } catch (err) {
+        // Fallback animated pose dots if camera permission is blocked in iframe preview
+        document.getElementById('camMinimalStatusPill').innerText =
+          'Simulated Pose Dots Active • Tap anywhere on screen for +1 rep';
+        pumpFallbackPoseDots();
+      }
+    }
+
+    async function switchCameraFacingMode(e) {
+      if (e) e.stopPropagation();
+      currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+      if (availableVideoDevices.length > 1) {
+        currentDeviceIndex = (currentDeviceIndex + 1) % availableVideoDevices.length;
+      }
+      await startCameraStream();
+    }
+
+    async function pumpCameraFrames() {
+      if (!cameraLoopActive) return;
+      if (camVideoEl.readyState >= 2 && poseDetector) {
+        try {
+          await poseDetector.send({ image: camVideoEl });
+        } catch (e) {}
+      }
+      if (cameraLoopActive) {
+        cameraRafId = requestAnimationFrame(pumpCameraFrames);
+      }
+    }
+
+    function compute3PointAngle(a, b, c) {
+      const rad = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+      let deg = Math.abs((rad * 180.0) / Math.PI);
+      if (deg > 180.0) deg = 360.0 - deg;
+      return Math.round(deg);
+    }
+
+    function checkPoseAngleForRep(angle) {
+      const now = performance.now();
+      const mode = activeTracker.camKey;
+
+      if (mode === 'squat' || mode === 'pushup') {
+        if (angle < 95) {
+          activeTracker.stage = 'DOWN';
+        } else if (angle > 155 && activeTracker.stage === 'DOWN') {
+          if (now - activeTracker.lastRepTs > 500) {
+            activeTracker.stage = 'UP';
+            activeTracker.lastRepTs = now;
+            incrementActiveRep();
+          }
+        }
+      } else {
+        if (angle > 150) {
+          activeTracker.stage = 'EXTENDED';
+        } else if (angle < 75 && activeTracker.stage === 'EXTENDED') {
+          if (now - activeTracker.lastRepTs > 500) {
+            activeTracker.stage = 'PEAK';
+            activeTracker.lastRepTs = now;
+            incrementActiveRep();
+          }
+        }
+      }
+    }
+
+    function onMinimalPoseResults(results) {
+      if (!cameraLoopActive) return;
+      const w = camCanvasEl.width;
+      const h = camCanvasEl.height;
+
+      camCtx.save();
+      camCtx.clearRect(0, 0, w, h);
+
+      // Mirror video horizontally when using front-facing camera
+      if (currentFacingMode === 'user') {
+        camCtx.translate(w, 0);
+        camCtx.scale(-1, 1);
+      }
+
+      camCtx.drawImage(results.image, 0, 0, w, h);
+
+      if (results.poseLandmarks) {
+        // Draw crisp skeleton connectors and prominent tracking dots
+        drawConnectors(camCtx, results.poseLandmarks, POSE_CONNECTIONS, {
+          color: 'rgba(255, 255, 255, 0.75)',
+          lineWidth: 3
+        });
+        drawLandmarks(camCtx, results.poseLandmarks, {
+          color: '#007AFF',
+          fillColor: '#FFFFFF',
+          lineWidth: 3,
+          radius: 6
+        });
+
+        const lm = results.poseLandmarks;
+        const isLeg = activeTracker.camKey === 'squat';
+        const pA = isLeg ? lm[23] : lm[11];
+        const pB = isLeg ? lm[25] : lm[13];
+        const pC = isLeg ? lm[27] : lm[15];
+
+        if (pA && pB && pC) {
+          const angle = compute3PointAngle(pA, pB, pC);
+          checkPoseAngleForRep(angle);
+        }
+      }
+
+      camCtx.restore();
+    }
+
+    function pumpFallbackPoseDots() {
+      if (!cameraLoopActive) return;
+      const w = camCanvasEl.width;
+      const h = camCanvasEl.height;
+
+      camCtx.save();
+      camCtx.fillStyle = '#111115';
+      camCtx.fillRect(0, 0, w, h);
+
+      fallbackSimPhase += 0.04;
+      const t = (1 - Math.cos(fallbackSimPhase)) / 2;
+
+      // Animated minimalist skeleton dots
+      const joints = [
+        { x: 0.5, y: 0.22 }, // Head
+        { x: 0.42, y: 0.34 }, // L Shoulder
+        { x: 0.58, y: 0.34 }, // R Shoulder
+        { x: 0.36 - t * 0.05, y: 0.48 }, // L Elbow
+        { x: 0.64 + t * 0.05, y: 0.48 }, // R Elbow
+        { x: 0.38, y: 0.62 - t * 0.22 }, // L Wrist
+        { x: 0.62, y: 0.62 - t * 0.22 }, // R Wrist
+        { x: 0.45, y: 0.58 }, // L Hip
+        { x: 0.55, y: 0.58 }, // R Hip
+        { x: 0.44, y: 0.76 }, // L Knee
+        { x: 0.56, y: 0.76 }  // R Knee
+      ];
+
+      const pairs = [
+        [1, 2], [1, 3], [3, 5], [2, 4], [4, 6],
+        [1, 7], [2, 8], [7, 8], [7, 9], [8, 10]
+      ];
+
+      camCtx.strokeStyle = 'rgba(255,255,255,0.65)';
+      camCtx.lineWidth = 3.5;
+      pairs.forEach(([i, j]) => {
+        camCtx.beginPath();
+        camCtx.moveTo(joints[i].x * w, joints[i].y * h);
+        camCtx.lineTo(joints[j].x * w, joints[j].y * h);
+        camCtx.stroke();
+      });
+
+      joints.forEach(pt => {
+        camCtx.beginPath();
+        camCtx.arc(pt.x * w, pt.y * h, 7, 0, Math.PI * 2);
+        camCtx.fillStyle = '#FFFFFF';
+        camCtx.fill();
+        camCtx.lineWidth = 3;
+        camCtx.strokeStyle = '#007AFF';
+        camCtx.stroke();
+      });
+
+      const angle = compute3PointAngle(joints[1], joints[3], joints[5]);
+      checkPoseAngleForRep(angle);
+
+      camCtx.restore();
+
+      if (cameraLoopActive) {
+        cameraRafId = requestAnimationFrame(pumpFallbackPoseDots);
+      }
+    }
+
+    function handleCameraCanvasTap(e) {
+      spawnTapWave(e.clientX, e.clientY, document.getElementById('minimalCameraModal'));
+      incrementActiveRep();
+    }
+
+    function stopActiveCameraStream() {
+      cameraLoopActive = false;
+      if (cameraRafId) cancelAnimationFrame(cameraRafId);
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+        currentStream = null;
+      }
+    }
+
+    function closeMinimalCameraModal() {
+      stopActiveCameraStream();
+      window.removeEventListener('resize', resizeCameraCanvas);
+      finishSetFromTracker();
+      document.getElementById('minimalCameraModal').classList.add('hidden');
+    }
+
+    /* =========================================================================
+       8. WORKOUT COMPLETION, CONFETTI & TOASTS
+       ========================================================================= */
+    function completeWorkoutSession() {
+      const todayIso = getTodayIso();
+      if (state.lastWorkoutIso !== todayIso) {
+        state.streak += 1;
+        state.lastWorkoutIso = todayIso;
+      }
+      if (!state.historyDates.includes(todayIso)) {
+        state.historyDates.push(todayIso);
+      }
+      saveCurrentAccountState();
+      triggerConfetti();
+      renderMainInterface();
+      showToast('Workout Complete', `Awesome work! Streak is now ${state.streak} days.`);
+    }
+
+    function triggerConfetti() {
+      const c = document.getElementById('confettiCanvas');
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
+      c.classList.remove('hidden');
+      const ctx = c.getContext('2d');
+      const colors = ['#007AFF', '#34C759', '#5856D6', '#FF9500'];
+      const pieces = Array.from({ length: 55 }, () => ({
+        x: Math.random() * c.width,
+        y: -20 - Math.random() * 40,
+        s: 6 + Math.random() * 5,
+        vx: (Math.random() - 0.5) * 4,
+        vy: 3 + Math.random() * 5,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      }));
+      let frameCount = 0;
+      function tick() {
+        frameCount++;
+        ctx.clearRect(0, 0, c.width, c.height);
+        pieces.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x, p.y, p.s, p.s);
+        });
+        if (frameCount < 85) requestAnimationFrame(tick);
+        else c.classList.add('hidden');
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function showToast(title, msg) {
+      const box = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      el.className = 'ios-card p-4 shadow-lg pointer-events-auto flex items-start gap-3 border-l-4 border-l-[#007AFF]';
+      el.innerHTML = `
+        <span class="material-symbols-rounded text-[#007AFF] mt-0.5">check_circle</span>
+        <div>
+          <div class="text-xs font-extrabold text-[#1D1D1F]">${title}</div>
+          <div class="text-xs text-[#86868B] mt-0.5">${msg}</div>
+        </div>
+      `;
+      box.appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    window.onload = function () {
+      loadAccountsFromLocal();
+      generateWorkoutPlan();
+      // Always start on Step 1 of 8 with zero navigation tabs visible
+      goToWizardStep(1);
+    };
+  </script>
+</body>
+</html>
